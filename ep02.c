@@ -19,17 +19,27 @@ typedef struct Partitions{
 
 #define READ_BINARY "rb"
 #define BOOT_SIGNATURE_INDEX 510
+#define DISK_SIGNATURE_INDEX 440
 #define FIRST_PARTITION_INDEX 446
 #define QUANTITY_OF_PARTITIONS 4
+#define START_BOLD "\x1B[1m"
+#define END_BOLD "\x1B[0m"
 
 
 
 enum errors {OPENING_FILE, MALLOC, READING_FILE, BOOT_SIGNATURE} error;
 
-void copyChs(char * dest, char * src){
-   for(int i = 0; i < 3; i++) {
-      dest[i] = src[i];
+float_t sectors_to_gb(uint64_t num){
+   return num * (512 / pow(1024, 3));
+}
+
+void print_with_length_and_clear(char str[], int len){
+   int spaces = len - strlen(str);
+   printf("%s", str);
+   for(int i = 0; i < spaces; i++){
+      printf(" ");
    }
+   memset(str, '\0', sizeof(str));
 }
 
 int main () {
@@ -56,13 +66,16 @@ int main () {
    }
 
    uint16_t bootSignature = *( (uint16_t *) &mbrBuffer[BOOT_SIGNATURE_INDEX] ); 
-   printf("Boot signature: %04x\n", bootSignature);
+   // printf("Boot signature: %04x\n", bootSignature);
+   // printf("Patition type is %02X check in https://en.wikipedia.org/wiki/Partition_type\n", partitions[0].type);
+
 
    if(bootSignature != 0xaa55) {
       printf("Error: File without a valid boot signature");
       exit(BOOT_SIGNATURE);
    } 
 
+   uint32_t diskSignature = *( (uint32_t *) &mbrBuffer[DISK_SIGNATURE_INDEX] ); 
 
    int partitionFileIndex = FIRST_PARTITION_INDEX;
    partition * partitions = malloc(QUANTITY_OF_PARTITIONS + sizeof(partition));
@@ -76,7 +89,7 @@ int main () {
       strncat(pAux->chsStart, (mbrBuffer + partitionFileIndex + cursor), 3); 
       cursor += sizeof(pAux->chsStart);
 
-      pAux->type = *(mbrBuffer + partitionFileIndex + cursor); 
+      pAux->type = *( (uint8_t *) (mbrBuffer + partitionFileIndex + cursor)); 
       cursor += sizeof(pAux->type);
 
       strncat(pAux->chsEnd, (mbrBuffer + partitionFileIndex + cursor), 3); 
@@ -91,43 +104,67 @@ int main () {
    }
 
   fclose(file);
-
-   
-   printf("Patition type is %02X check in https://en.wikipedia.org/wiki/Partition_type\n", partitions[0].type);
-   printf("Unidades: setor de 1 * 512 = 512 bytes\n");
-   
-   printf("Dispositivo Inicializar Início    Fim    Setores Tamanho\n");
-
-   char * auxText = malloc(sizeof(char) * 20);
    
    float_t memoryInDisk = 0;
 
    for(int i = 0; i < QUANTITY_OF_PARTITIONS; i++) {
+      uint64_t qntdSectors = (uint64_t) (partitions[i].qntSectors);
+      memoryInDisk += sectors_to_gb(qntdSectors);
+   }
+
+   memoryInDisk = round(memoryInDisk);
+
+   char mystr[10]; 
+ 
+   sprintf(mystr, "Disco /dev/sda: %.f GiB", memoryInDisk);  
+
+   printf("%s", START_BOLD);
+   printf("\nDisco /dev/sda: %.f GiB, %.f bytes, %.f setores\n", memoryInDisk, memoryInDisk * pow(1024, 3), (memoryInDisk * pow(1024, 3)) / 512);
+   printf("%s", END_BOLD);
+
+   printf("Unidades: setor de 1 * 512 = 512 bytes\n");
+   printf("Tamanho E/S (mínimo/ótimo): 512 bytes / 512 bytes\n");
+   printf("Tipo de rótulo do disco: dos\n");
+   printf("Identificador do disco: 0x%08x\n", diskSignature);
+ 
+   printf("%s", START_BOLD);
+   printf("\nDispositivo Inicializar Início    Fim       Setores   Tamanho Id \n");
+   printf("%s", END_BOLD);
+   
+   char * auxText = malloc(sizeof(char) * 20);
+   for(int i = 0; i < QUANTITY_OF_PARTITIONS; i++) {
       if (partitions[i].lba ) {
-         // uint64_t memoryInDisk = round( (partitions[i].lba + partitions[i].qntSectors) );
          printf("/dev/sda%d   ", i + 1);
          if (partitions[i].status == 0x80){
             printf("*           ");
          } else {
             printf("            ");
          }
-         printf("%d\t", partitions[i].lba);
-         printf("%d", partitions[i].qntSectors + partitions[i].lba - 1);
-         printf("%d         ", partitions[i].qntSectors);
-         uint64_t qntdSectors = (uint64_t) (partitions[i].qntSectors);
-         float_t sectors_to_gb = 512 / pow(1024, 3);
-         memoryInDisk += qntdSectors * sectors_to_gb;
-         printf("%.1fG        ", qntdSectors * sectors_to_gb);
+
+
+         sprintf(auxText, "%d", partitions[i].lba);
+         print_with_length_and_clear(auxText, 10);
+
+
+         sprintf(auxText, "%d", partitions[i].qntSectors + partitions[i].lba - 1);
+         print_with_length_and_clear(auxText, 10);
+
+         
+         sprintf(auxText, "%d", partitions[i].qntSectors);
+         print_with_length_and_clear(auxText, 10);
+
+         
+         sprintf(auxText, "%.1fG", sectors_to_gb(partitions[i].qntSectors));
+         print_with_length_and_clear(auxText, 8);
+
+         sprintf(auxText, "%x", partitions[i].type);
+         print_with_length_and_clear(auxText, 3);
 
          printf("\n");
       }
    }
 
-   memoryInDisk = round(memoryInDisk);
-
-   printf("Disco /dev/sda: %.f GiB, %.f bytes, %.f setores\n", memoryInDisk, memoryInDisk * pow(1024, 3), (memoryInDisk * pow(1024, 3)) / 512);
-   
-
+   free(auxText);
   free(mbrBuffer);
   return 0;
 }
