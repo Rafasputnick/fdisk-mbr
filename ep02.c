@@ -10,9 +10,9 @@
 
 typedef struct Partitions{
    uint8_t status;
-   char chsStart[3]; // 3 bytes
+   char chsStart[3];
    uint8_t type; 
-   char chsEnd[3]; // 3 bytes
+   char chsEnd[3];
    uint32_t lba;
    uint32_t qntSectors;
 } partition;
@@ -33,13 +33,26 @@ float_t sectors_to_gb(uint64_t num){
    return num * (512 / pow(1024, 3));
 }
 
+char * get_type_desc(uint8_t typeId){
+   // baseado em:
+   // https://en.wikipedia.org/wiki/Partition_type#:~:text=The%20partition%20type%20(or%20partition,mappings%2C%20LBA%20access%2C%20logical%20mapped
+   switch (typeId){
+      case 0x83:
+         return "Linux";
+      case 0x82:
+         return "Linux swap";   
+      default:
+         return "Desconhecido";
+   }
+}
+
 void print_with_length_and_clear(char str[], int len){
    int spaces = len - strlen(str);
    printf("%s", str);
    for(int i = 0; i < spaces; i++){
       printf(" ");
    }
-   memset(str, '\0', sizeof(str));
+   memset(str, '\0', strlen(str));
 }
 
 int main () {
@@ -122,13 +135,16 @@ int main () {
    printf("\nDisco /dev/sda: %.f GiB, %.f bytes, %.f setores\n", memoryInDisk, memoryInDisk * pow(1024, 3), (memoryInDisk * pow(1024, 3)) / 512);
    printf("%s", END_BOLD);
 
+   // Infos que nao achei
+   printf("Modelo de disco: VBOX HARDDISK\n");
    printf("Unidades: setor de 1 * 512 = 512 bytes\n");
    printf("Tamanho E/S (mínimo/ótimo): 512 bytes / 512 bytes\n");
    printf("Tipo de rótulo do disco: dos\n");
+
    printf("Identificador do disco: 0x%08x\n", diskSignature);
  
    printf("%s", START_BOLD);
-   printf("\nDispositivo Inicializar Início    Fim       Setores   Tamanho Id \n");
+   printf("\nDispositivo Inicializar Início    Fim       Setores   Tamanho Id Tipo\n");
    printf("%s", END_BOLD);
    
    char * auxText = malloc(sizeof(char) * 20);
@@ -160,11 +176,13 @@ int main () {
          sprintf(auxText, "%x", partitions[i].type);
          print_with_length_and_clear(auxText, 3);
 
+         printf("%s", get_type_desc(partitions[i].type));
+
          printf("\n");
       }
    }
 
    free(auxText);
-  free(mbrBuffer);
-  return 0;
+   free(mbrBuffer);
+   return 0;
 }
