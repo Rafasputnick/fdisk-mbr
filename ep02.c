@@ -78,9 +78,7 @@ int main () {
       exit(READING_FILE);
    }
 
-   uint16_t bootSignature = *( (uint16_t *) &mbrBuffer[BOOT_SIGNATURE_INDEX] ); 
-   // printf("Boot signature: %04x\n", bootSignature);
-   // printf("Patition type is %02X check in https://en.wikipedia.org/wiki/Partition_type\n", partitions[0].type);
+   uint16_t bootSignature = *( (uint16_t *) &mbrBuffer[BOOT_SIGNATURE_INDEX] );
 
 
    if(bootSignature != 0xaa55) {
@@ -183,6 +181,7 @@ int main () {
    }
 
    free(auxText);
+   free(partitions);
    free(mbrBuffer);
    return 0;
 }
