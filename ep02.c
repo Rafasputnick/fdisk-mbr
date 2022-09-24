@@ -8,14 +8,13 @@
 #include <stdint.h>
 #include <string.h>
 #include <math.h>
-#include <math.h>
 
 typedef struct Partitions {
    uint8_t status;
    char chsStart[3];
    uint8_t type;
    char chsEnd[3];
-   uint32_t lba;
+   uint32_t lbaId;
    uint32_t qntSectors;
 } partition;
 
@@ -34,7 +33,7 @@ enum errors {
    BOOT_SIGNATURE
 } error;
 
-float_t sectors_to_gb(uint64_t num) {
+float_t sectors_to_gb(uint32_t num) {
    return num * (512 / pow(1024, 3));
 }
 
@@ -81,39 +80,39 @@ int main() {
       exit(READING_FILE);
    }
 
-   uint16_t bootSignature = *((uint16_t *)&mbrBuffer[BOOT_SIGNATURE_INDEX]);
+   uint16_t bootSignature = *((uint16_t *)(mbrBuffer + BOOT_SIGNATURE_INDEX));
 
    if (bootSignature != 0xaa55) {
       printf("Error: File without a valid boot signature");
       exit(BOOT_SIGNATURE);
    }
 
-   uint32_t diskSignature = *((uint32_t *)&mbrBuffer[DISK_SIGNATURE_INDEX]);
+   uint32_t diskSignature = *((uint32_t *)(mbrBuffer + DISK_SIGNATURE_INDEX));
 
-   int partitionFileIndex = FIRST_PARTITION_INDEX;
-   partition *partitions = malloc(QUANTITY_OF_PARTITIONS + sizeof(partition));
+   int partitionIndex = FIRST_PARTITION_INDEX;
+   partition *partitions = malloc(QUANTITY_OF_PARTITIONS * sizeof(partition));
    for (int i = 0; i < QUANTITY_OF_PARTITIONS; i++) {
       partition *pAux = &partitions[i];
 
       uint8_t cursor = 0;
-      pAux->status = *(mbrBuffer + partitionFileIndex);
+      pAux->status = *(mbrBuffer + partitionIndex);
       cursor += sizeof(pAux->status);
 
-      strncat(pAux->chsStart, (mbrBuffer + partitionFileIndex + cursor), 3);
+      strncat(pAux->chsStart, (mbrBuffer + partitionIndex + cursor), 3);
       cursor += sizeof(pAux->chsStart);
 
-      pAux->type = *((uint8_t *)(mbrBuffer + partitionFileIndex + cursor));
+      pAux->type = *((uint8_t *)(mbrBuffer + partitionIndex + cursor));
       cursor += sizeof(pAux->type);
 
-      strncat(pAux->chsEnd, (mbrBuffer + partitionFileIndex + cursor), 3);
+      strncat(pAux->chsEnd, (mbrBuffer + partitionIndex + cursor), 3);
       cursor += sizeof(pAux->chsEnd);
 
-      pAux->lba = *((uint32_t *)(mbrBuffer + partitionFileIndex + cursor));
-      cursor += sizeof(pAux->lba);
+      pAux->lbaId = *((uint32_t *)(mbrBuffer + partitionIndex + cursor));
+      cursor += sizeof(pAux->lbaId);
 
-      pAux->qntSectors = *((uint32_t *)(mbrBuffer + partitionFileIndex + cursor));
+      pAux->qntSectors = *((uint32_t *)(mbrBuffer + partitionIndex + cursor));
 
-      partitionFileIndex += sizeof(partition);
+      partitionIndex += sizeof(partition);
    }
 
    fclose(file);
@@ -121,21 +120,15 @@ int main() {
    float_t memoryInDisk = 0;
 
    for (int i = 0; i < QUANTITY_OF_PARTITIONS; i++) {
-      uint64_t qntdSectors = (uint64_t)(partitions[i].qntSectors);
-      memoryInDisk += sectors_to_gb(qntdSectors);
+      memoryInDisk += sectors_to_gb(partitions[i].qntSectors);
    }
 
    memoryInDisk = round(memoryInDisk);
-
-   char mystr[10];
-
-   sprintf(mystr, "Disco /dev/sda: %.f GiB", memoryInDisk);
 
    printf("%s", START_BOLD);
    printf("\nDisco /dev/sda: %.f GiB, %.f bytes, %.f setores\n", memoryInDisk, memoryInDisk * pow(1024, 3), (memoryInDisk * pow(1024, 3)) / 512);
    printf("%s", END_BOLD);
 
-   // Infos que nao achei
    printf("Modelo de disco: VBOX HARDDISK\n");
    printf("Unidades: setor de 1 * 512 = 512 bytes\n");
    printf("Tamanho E/S (mínimo/ótimo): 512 bytes / 512 bytes\n");
@@ -149,7 +142,7 @@ int main() {
 
    char *auxText = malloc(sizeof(char) * 20);
    for (int i = 0; i < QUANTITY_OF_PARTITIONS; i++) {
-      if (partitions[i].lba) {
+      if (partitions[i].lbaId) {
          printf("/dev/sda%d   ", i + 1);
          if (partitions[i].status == 0x80) {
             printf("*           ");
@@ -157,10 +150,10 @@ int main() {
             printf("            ");
          }
 
-         sprintf(auxText, "%d", partitions[i].lba);
+         sprintf(auxText, "%d", partitions[i].lbaId);
          print_with_length_and_clear(auxText, 10);
 
-         sprintf(auxText, "%d", partitions[i].qntSectors + partitions[i].lba - 1);
+         sprintf(auxText, "%d", partitions[i].qntSectors + partitions[i].lbaId - 1);
          print_with_length_and_clear(auxText, 10);
 
          sprintf(auxText, "%d", partitions[i].qntSectors);
