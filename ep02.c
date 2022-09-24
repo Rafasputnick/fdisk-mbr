@@ -14,7 +14,7 @@ typedef struct Partitions {
    char chsStart[3];
    uint8_t type;
    char chsEnd[3];
-   uint32_t lbaId;
+   uint32_t lba;
    uint32_t qntSectors;
 } partition;
 
@@ -46,15 +46,6 @@ char *get_type_desc(uint8_t typeId) {
    default:
       return "Desconhecido";
    }
-}
-
-void print_with_length_and_clear(char str[], int len) {
-   int spaces = len - strlen(str);
-   printf("%s", str);
-   for (int i = 0; i < spaces; i++) {
-      printf(" ");
-   }
-   memset(str, '\0', strlen(str));
 }
 
 int main() {
@@ -107,8 +98,8 @@ int main() {
       strncat(pAux->chsEnd, (mbrBuffer + partitionIndex + cursor), 3);
       cursor += sizeof(pAux->chsEnd);
 
-      pAux->lbaId = *((uint32_t *)(mbrBuffer + partitionIndex + cursor));
-      cursor += sizeof(pAux->lbaId);
+      pAux->lba = *((uint32_t *)(mbrBuffer + partitionIndex + cursor));
+      cursor += sizeof(pAux->lba);
 
       pAux->qntSectors = *((uint32_t *)(mbrBuffer + partitionIndex + cursor));
 
@@ -140,9 +131,9 @@ int main() {
    printf("\nDispositivo Inicializar Início    Fim       Setores   Tamanho Id Tipo\n");
    printf("%s", END_BOLD);
 
-   char *auxText = malloc(sizeof(char) * 20);
+   char *auxText = malloc(sizeof(char) * 6);
    for (int i = 0; i < QUANTITY_OF_PARTITIONS; i++) {
-      if (partitions[i].lbaId) {
+      if (partitions[i].lba) {
          printf("/dev/sda%d   ", i + 1);
          if (partitions[i].status == 0x80) {
             printf("*           ");
@@ -150,21 +141,18 @@ int main() {
             printf("            ");
          }
 
-         sprintf(auxText, "%d", partitions[i].lbaId);
-         print_with_length_and_clear(auxText, 10);
-
-         sprintf(auxText, "%d", partitions[i].qntSectors + partitions[i].lbaId - 1);
-         print_with_length_and_clear(auxText, 10);
-
-         sprintf(auxText, "%d", partitions[i].qntSectors);
-         print_with_length_and_clear(auxText, 10);
-
+         printf("%-10d", partitions[i].lba);
+         
+         printf("%-10d", partitions[i].lba + partitions[i].qntSectors - 1);
+         
+         printf("%-10d", partitions[i].qntSectors);
+         
          sprintf(auxText, "%.1fG", sectors_to_gb(partitions[i].qntSectors));
-         print_with_length_and_clear(auxText, 8);
-
-         sprintf(auxText, "%x", partitions[i].type);
-         print_with_length_and_clear(auxText, 3);
-
+         printf("%-8s", auxText);
+         memset(auxText, '\0', strlen(auxText));
+         
+         printf("%-3x", partitions[i].type);
+         
          printf("%s", get_type_desc(partitions[i].type));
 
          printf("\n");
