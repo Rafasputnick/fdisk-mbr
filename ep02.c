@@ -12,7 +12,7 @@
 typedef struct Partitions {
    uint8_t status;
    char chsStart[3];
-   uint8_t type;
+   uint8_t typeId;
    char chsEnd[3];
    uint32_t lba;
    uint32_t qntSectors;
@@ -71,6 +71,8 @@ int main() {
       exit(READING_FILE);
    }
 
+   fclose(file);
+
    uint16_t bootSignature = *((uint16_t *)(mbrBuffer + BOOT_SIGNATURE_INDEX));
 
    if (bootSignature != 0xaa55) {
@@ -92,8 +94,8 @@ int main() {
       strncat(pAux->chsStart, (mbrBuffer + partitionIndex + cursor), 3);
       cursor += sizeof(pAux->chsStart);
 
-      pAux->type = *((uint8_t *)(mbrBuffer + partitionIndex + cursor));
-      cursor += sizeof(pAux->type);
+      pAux->typeId = *((uint8_t *)(mbrBuffer + partitionIndex + cursor));
+      cursor += sizeof(pAux->typeId);
 
       strncat(pAux->chsEnd, (mbrBuffer + partitionIndex + cursor), 3);
       cursor += sizeof(pAux->chsEnd);
@@ -105,8 +107,6 @@ int main() {
 
       partitionIndex += sizeof(partition);
    }
-
-   fclose(file);
 
    float_t memoryInDisk = 0;
 
@@ -134,28 +134,33 @@ int main() {
    char *auxText = malloc(sizeof(char) * 6);
    for (int i = 0; i < QUANTITY_OF_PARTITIONS; i++) {
       if (partitions[i].lba) {
-         printf("/dev/sda%d   ", i + 1);
-         if (partitions[i].status == 0x80) {
-            printf("*           ");
-         } else {
-            printf("            ");
-         }
-
+         // Dispositivo
+         printf("/dev/sda%-4d", i + 1);
+         
+         // Inicializar
+         char initialize_marker = ' ';
+         if (partitions[i].status == 0x80) initialize_marker = '*'; 
+         printf("%-12c", initialize_marker);
+         
+         // Inicio
          printf("%-10d", partitions[i].lba);
          
+         // Fim
          printf("%-10d", partitions[i].lba + partitions[i].qntSectors - 1);
          
+         // Setores
          printf("%-10d", partitions[i].qntSectors);
          
+         // Tamanho
          sprintf(auxText, "%.1fG", sectors_to_gb(partitions[i].qntSectors));
          printf("%-8s", auxText);
          memset(auxText, '\0', strlen(auxText));
          
-         printf("%-3x", partitions[i].type);
+         // Id (do tipo da particao)
+         printf("%-3x", partitions[i].typeId);
          
-         printf("%s", get_type_desc(partitions[i].type));
-
-         printf("\n");
+         // Tipo (descricao do tipo da particao)
+         printf("%s\n", get_type_desc(partitions[i].typeId));
       }
    }
 
